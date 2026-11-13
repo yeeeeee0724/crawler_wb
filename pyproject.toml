@@ -1,7 +1,7 @@
 [project]
 name = "wb-crawler"
 version = "0.1.0"
-description = "Crawl Posttrade OTC trades from prices.wienerboerse.at for a list of ISINs"
+description = "Crawl Posttrade Exchange, Pretrade Exchange and Posttrade OTC data from prices.wienerboerse.at for a list of ISINs"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

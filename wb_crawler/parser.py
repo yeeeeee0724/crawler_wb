@@ -6,7 +6,11 @@ NUMERIC_COLUMNS = [
     "Traded Price", "Traded Quantity", "Quantity in measurement unit",
     "Volume Weighted Average APA", "Total Traded Volume APA",
     "Total Number Transactions APA", "Nominal Value",
+    # Pretrade Exchange (the "Volumne" typo is the site's own column name)
+    "Best Ask Price", "Best Ask Volume", "Best Ask Number of Orders",
+    "Best Bid Price", "Best Bid Volumne", "Best Bid Number Of Orders",
 ]
+QUOTE_TIME = "Quote Date Time"  # Pretrade Exchange: built from its separate Date and Time columns
 
 
 def to_dataframe(header, rows):
@@ -26,6 +30,11 @@ def to_dataframe(header, rows):
     for col in TIME_COLUMNS:
         if col in df:
             df[col] = pd.to_datetime(df[col].str.replace(r"[()]", "", regex=True), utc=True, errors="coerce", format="ISO8601")
+
+    # Pretrade Exchange: "11/13/2026" + "14:36:33.820" -> one UTC timestamp
+    if "Date" in df and "Time" in df:
+        stamp = pd.to_datetime(df.pop("Date") + " " + df.pop("Time"), utc=True, errors="coerce", format="%m/%d/%Y %H:%M:%S.%f")
+        df.insert(2, QUOTE_TIME, stamp)
 
     for col in NUMERIC_COLUMNS:
         if col in df:

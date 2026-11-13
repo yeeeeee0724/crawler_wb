@@ -10,6 +10,13 @@ TAB_PRETRADE_EXCHANGE = 2
 TAB_POSTTRADE_OTC = 3
 TAB_PRETRADE_OTC = 4
 
+# Tabs the crawler can download: name (used for --tabs and the output folder) -> tab index
+TABS = {
+    "posttrade-exchange": TAB_POSTTRADE_EXCHANGE,
+    "pretrade-exchange": TAB_PRETRADE_EXCHANGE,
+    "posttrade-otc": TAB_POSTTRADE_OTC,
+}
+
 # Filter key for the ISIN text field (from GetFilter)
 FILTER_ISIN = "ISn"
 

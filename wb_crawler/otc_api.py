@@ -1,4 +1,4 @@
-"""Site-specific calls to the Wiener Börse `stockhub`."""
+"""Site-specific calls to the Wiener Börse `stockhub` (works for every tab, not only OTC)."""
 import json
 import logging
 import time
@@ -32,14 +32,16 @@ class WienerBoerseAPI:
         return json.loads(raw)
 
     def fetch_all(self, isin, tab=config.TAB_POSTTRADE_OTC):
-        """Return (header, rows) for every page of trades for one ISIN."""
+        """Return (header, rows) for every page of one ISIN on one tab."""
         first = self.fetch_page(isin, 1, tab)
         header, rows = first["Data"][0], first["Data"][1:]
         total, pages = first["AllDataCount"], first["AllPages"]
-        log.info("%s: %d trades on %d page(s)", isin, total, pages)
+        log.info("%s (tab %d): %d rows on %d page(s)", isin, tab, total, pages)
 
         for page in range(2, pages + 1):
             time.sleep(config.DELAY_BETWEEN_CALLS)
+            if page % 20 == 0:
+                log.info("%s (tab %d): page %d of %d", isin, tab, page, pages)
             rows.extend(self.fetch_page(isin, page, tab)["Data"][1:])
 
         if total and len(rows) != total:
