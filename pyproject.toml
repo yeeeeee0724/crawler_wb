@@ -1,0 +1,16 @@
+[project]
+name = "wb-crawler"
+version = "0.1.0"
+description = "Crawl Posttrade OTC trades from prices.wienerboerse.at for a list of ISINs"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.31",
+    "pandas>=2.0",
+]
+
+[project.optional-dependencies]
+parquet = ["pyarrow>=14"]
+
+[tool.uv]
+package = false

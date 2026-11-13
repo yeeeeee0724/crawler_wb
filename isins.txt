@@ -1,0 +1,4 @@
+# One ISIN per line. Anything after # is ignored.
+FR0000120578   # Sanofi
+JP3436100006
+AT0000A00000   # invalid check -> example of an ISIN with no trades
