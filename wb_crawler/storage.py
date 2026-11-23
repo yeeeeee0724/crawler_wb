@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from .parser import QUOTE_TIME, TIME_COLUMNS
+from .parser import QUOTE_TIME, TIME_COLUMNS, time_column
 
 log = logging.getLogger(__name__)
 
@@ -42,6 +42,16 @@ def _dedupe_columns(df):
     if KEY in df:
         return [KEY]
     return [c for c in QUOTE_KEY if c in df] or None
+
+
+def latest_time(isin, folder, fmt="csv"):
+    """Newest row time already saved for `isin` in `folder`, or None."""
+    df = _read(Path(folder) / f"{isin}.{fmt}", fmt)
+    if df is None or df.empty:
+        return None
+    col = time_column(df)
+    latest = df[col].max() if col else None
+    return None if pd.isna(latest) else latest
 
 
 def save(df, isin, folder, fmt="csv"):

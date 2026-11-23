@@ -3,13 +3,19 @@
 Tabs: posttrade-exchange, pretrade-exchange and posttrade-otc (all three by default).
 
 Usage:
-    python main.py --isins isins.txt [--tabs posttrade-otc ...] [--out data] [--format csv|parquet]
+    python main.py --isins isins.txt [--tabs posttrade-otc ...] [--out data] [--format csv|parquet] [--full] [--workers N]
+
+Runs are incremental: for an ISIN already saved today, paging stops once it reaches
+rows older than the newest saved row minus config.OVERLAP_MINUTES. --full fetches every page.
+(tab, ISIN) jobs run on --workers parallel connections.
 """
 import argparse
 import logging
+import queue
 import re
+import threading
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import config
@@ -36,6 +42,22 @@ def read_isins(path):
     return isins
 
 
+def crawl_one(api, isin, tab_name, folder, args):
+    """Fetch and save one ISIN on one tab. Returns rows on disk, or "ERROR"."""
+    stop_before = None
+    if not args.full:
+        latest = storage.latest_time(isin, folder, args.format)
+        if latest is not None:
+            stop_before = latest - timedelta(minutes=config.OVERLAP_MINUTES)
+    try:
+        header, rows = api.fetch_all(isin, config.TABS[tab_name], stop_before)
+    except Exception as e:
+        log.error("%s (%s): failed (%s)", isin, tab_name, e)
+        return "ERROR"
+    df = parser.to_dataframe(header, rows)
+    return storage.save(df, isin, folder, args.format) if not df.empty else 0
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--isins", default="isins.txt", help="file with one ISIN per line")
@@ -43,6 +65,9 @@ def main():
                     help="which tabs to crawl (default: all)")
     ap.add_argument("--out", default=config.OUTPUT_DIR, help="output folder")
     ap.add_argument("--format", choices=["csv", "parquet"], default="csv")
+    ap.add_argument("--full", action="store_true", help="fetch every page, even for ISINs already saved today")
+    ap.add_argument("--workers", type=int, default=config.WORKERS,
+                    help=f"parallel connections (default: {config.WORKERS})")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args()
 
@@ -56,25 +81,44 @@ def main():
     day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
     summary = {isin: {} for isin in isins}
-    combined = []
-    with SignalRClient() as client:
-        api = WienerBoerseAPI(client)
-        for tab_name in args.tabs:
-            tab = config.TABS[tab_name]
-            folder = Path(args.out) / day / tab_name
-            for isin in isins:
+    jobs = queue.Queue()
+    # Slow pretrade jobs first, so the quick ones fill in at the end instead of one long job running alone
+    for tab_name in sorted(args.tabs, key=lambda t: t != "pretrade-exchange"):
+        for isin in isins:
+            jobs.put((tab_name, isin))
+
+    def worker():
+        # Each worker has its own SignalR connection; one connection can't be shared between threads
+        try:
+            client = SignalRClient()
+            client.connect()
+        except Exception as e:
+            log.error("worker could not connect (%s)", e)
+            return
+        try:
+            api = WienerBoerseAPI(client)
+            while True:
                 try:
-                    header, rows = api.fetch_all(isin, tab)
-                except Exception as e:
-                    log.error("%s (%s): failed (%s)", isin, tab_name, e)
-                    summary[isin][tab_name] = "ERROR"
-                    continue
-                df = parser.to_dataframe(header, rows)
-                summary[isin][tab_name] = storage.save(df, isin, folder, args.format) if not df.empty else 0
+                    tab_name, isin = jobs.get_nowait()
+                except queue.Empty:
+                    return
+                folder = Path(args.out) / day / tab_name
+                summary[isin][tab_name] = crawl_one(api, isin, tab_name, folder, args)
                 time.sleep(config.DELAY_BETWEEN_CALLS)
-            path = storage.save_combined(folder, args.format)
-            if path:
-                combined.append(path)
+        finally:
+            client.close()
+
+    threads = [threading.Thread(target=worker) for _ in range(min(args.workers, jobs.qsize()))]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    combined = []
+    for tab_name in args.tabs:
+        path = storage.save_combined(Path(args.out) / day / tab_name, args.format)
+        if path:
+            combined.append(path)
 
     print("\nRows today, on disk:")
     print(f"{'ISIN':<14}" + "".join(f"{t:>20}" for t in args.tabs))

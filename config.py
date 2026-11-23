@@ -23,7 +23,10 @@ FILTER_ISIN = "ISn"
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
 REQUEST_TIMEOUT = 40        # seconds; long-poll can hold a request open
 POLL_TIMEOUT = 60           # max seconds to wait for a hub reply
-DELAY_BETWEEN_CALLS = 0.7   # seconds, be polite
+DELAY_BETWEEN_CALLS = 1.5   # seconds between hub calls on one connection, be polite
 MAX_RETRIES = 4
+WORKERS = 3                 # parallel connections; each pretrade page costs the server ~5s, keep this small
+# Incremental runs: stop paging once a page is older than the newest row on disk minus this
+OVERLAP_MINUTES = 15
 
 OUTPUT_DIR = "data"

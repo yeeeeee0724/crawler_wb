@@ -41,3 +41,18 @@ def to_dataframe(header, rows):
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
     return df
+
+
+def time_column(df):
+    """The column that orders rows in time ("Trading Date Time" or the quote time), or None."""
+    for col in (TIME_COLUMNS[0], QUOTE_TIME):
+        if col in df:
+            return col
+    return None
+
+
+def oldest_time(header, rows):
+    """Earliest row time in one raw page, or None."""
+    df = to_dataframe(header, rows)
+    col = time_column(df)
+    return df[col].min() if col and not df.empty else None
